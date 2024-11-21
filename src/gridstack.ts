@@ -382,6 +382,15 @@ export class GridStack {
       this.cellHeight(opts.cellHeight, false);
     }
 
+    if(opts.cellWidth !== 'auto')
+    {
+      if (typeof opts.cellWidth == 'number' && opts.cellWidthUnit && opts.cellWidthUnit !== gridDefaults.cellWidthUnit) {
+        opts.cellWidth = opts.cellWidth + opts.cellWidthUnit;
+        delete opts.cellWidthUnit;
+      }
+      this.cellWidth(opts.cellWidth, false);
+    }
+
     // see if we need to adjust auto-hide
     if (opts.alwaysShowResizeHandle === 'mobile') {
       opts.alwaysShowResizeHandle = isTouch;
@@ -831,6 +840,32 @@ export class GridStack {
   }
 
   /**
+   * Gets current cell width.
+   */
+  public getCellWidth(forcePixel = false): number {
+    if (this.opts.cellWidth && this.opts.cellWidth !== 'auto' &&
+      (!forcePixel || !this.opts.cellWidthUnit || this.opts.cellWidthUnit === 'px')) {
+      return this.opts.cellWidth as number;
+    }
+    // do rem/em/cm/mm to px conversion
+    if (this.opts.cellWidthUnit === 'rem') {
+      return (this.opts.cellWidth as number) * parseFloat(getComputedStyle(document.documentElement).fontSize);
+    }
+    if (this.opts.cellWidthUnit === 'em') {
+      return (this.opts.cellWidth as number) * parseFloat(getComputedStyle(this.el).fontSize);
+    }
+    if (this.opts.cellWidthUnit === 'cm') {
+      // 1cm = 96px/2.54. See https://www.w3.org/TR/css-values-3/#absolute-lengths
+      return (this.opts.cellWidth as number) * (96 / 2.54);
+    }
+    if (this.opts.cellWidthUnit === 'mm') {
+      return (this.opts.cellWidth as number) * (96 / 2.54) / 10;
+    }
+    // else return container / column
+    return this._widthOrContainer() / this.getColumn();
+  }
+
+  /**
    * Update current cell height - see `GridStackOptions.cellHeight` for format.
    * This method rebuilds an internal CSS style sheet.
    * Note: You can expect performance issues if call this method too often.
@@ -859,7 +894,7 @@ export class GridStack {
     if (val === undefined) {
       const marginDiff = - (this.opts.marginRight as number) - (this.opts.marginLeft as number)
         + (this.opts.marginTop as number) + (this.opts.marginBottom as number);
-      val = this.cellWidth() + marginDiff;
+      val = this.getCellWidth(true) + marginDiff;
     }
 
     const data = Utils.parseHeight(val);
@@ -878,9 +913,30 @@ export class GridStack {
   }
 
   /** Gets current cell width. */
-  public cellWidth(): number {
-    return this._widthOrContainer() / this.getColumn();
+  public cellWidth(val?: numberOrString, update = true): GridStack {
+
+    if (val === 'auto') { val = undefined; }
+
+    // make item content be square
+    if (val === undefined) {
+      val = this._widthOrContainer() / this.getColumn();
+    }
+
+    const data = Utils.parseWidth(val);
+    if (this.opts.cellWidthUnit === data.unit && this.opts.cellWidth === data.w) {
+      return this;
+    }
+    this.opts.cellWidthUnit = data.unit;
+    this.opts.cellWidth = data.w;
+
+    this.resizeToContentCheck();
+
+    if (update) {
+      this._updateStyles(true); // true = force re-create for current # of rows
+    }
+    return this;
   }
+
   /** return our expected width (or parent) , and optionally of window for dynamic column check */
   protected _widthOrContainer(forBreakpoint = false): number {
     // use `offsetWidth` or `clientWidth` (no scrollbar) ?
@@ -1452,7 +1508,7 @@ export class GridStack {
       const rot: GridStackWidget = { w: n.h, h: n.w, minH: n.minW, minW: n.minH, maxH: n.maxW, maxW: n.maxH };
       // if given an offset, adjust x/y by column/row bounds when user presses 'r' during dragging
       if (relative) {
-        const pivotX = relative.left > 0 ? Math.floor(relative.left / this.cellWidth()) : 0;
+        const pivotX = relative.left > 0 ? Math.floor(relative.left / this.getCellWidth(true)) : 0;
         const pivotY = relative.top > 0 ? Math.floor(relative.top / (this.opts.cellHeight as number)) : 0;
         rot.x = n.x + pivotX - (n.h - (pivotY+1));
         rot.y = (n.y + pivotY) - pivotX;
@@ -1589,6 +1645,8 @@ export class GridStack {
 
     const cellHeight = this.opts.cellHeight as number;
     const cellHeightUnit = this.opts.cellHeightUnit;
+    const cellWidth = this.opts.cellWidth as number;
+    const cellWidthUnit = this.opts.cellWidthUnit;
     const prefix = `.${this._styleSheetClass} > .${this.opts.itemClass}`;
 
     // create one as needed
@@ -1603,6 +1661,19 @@ export class GridStack {
 
       // these are done once only
       Utils.addCSSRule(this._styles, prefix, `height: ${cellHeight}${cellHeightUnit}`);
+
+      if(this.opts.cellWidth != 'auto') {
+
+        Utils.addCSSRule(this._styles, prefix, `width: ${cellWidth}${cellWidthUnit}`);
+
+        if(this.opts.column != 'auto'){
+          for (let i = 0; i < this.opts.column; i++) {
+            Utils.addCSSRule(this._styles, `${prefix}[gs-w="${i}"]`, `width: ${this.getCellWidth() * i}${this.opts.cellWidthUnit}`);
+            Utils.addCSSRule(this._styles, `${prefix}[gs-x="${i}"]`, `left: ${this.getCellWidth() * i}${this.opts.cellWidthUnit}`);
+          }
+        }
+      }
+
       // content margins
       const top: string = this.opts.marginTop + this.opts.marginUnit;
       const bottom: string = this.opts.marginBottom + this.opts.marginUnit;
@@ -2185,7 +2256,7 @@ export class GridStack {
         helper = helper || el;
 
         // cache cell dimensions (which don't change), position can animate if we removed an item in otherGrid that affects us...
-        cellWidth = this.cellWidth();
+        cellWidth = this.getCellWidth(true);
         cellHeight = this.getCellHeight(true);
 
         // sidebar items: load any element attributes if we don't have a node
@@ -2394,7 +2465,7 @@ export class GridStack {
         if (this._gsEventHandler[event.type]) {
           this._gsEventHandler[event.type](event, event.target);
         }
-        cellWidth = this.cellWidth();
+        cellWidth = this.getCellWidth(true);
         cellHeight = this.getCellHeight(true); // force pixels for calculations
 
         this._onStartMoving(el, event, ui, node, cellWidth, cellHeight);

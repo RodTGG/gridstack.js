@@ -11,6 +11,8 @@ export const gridDefaults: GridStackOptions = {
   alwaysShowResizeHandle: 'mobile',
   animate: true,
   auto: true,
+  cellWidth: 'auto',
+  cellWidthUnit: 'px',
   cellHeight: 'auto',
   cellHeightThrottle: 100,
   cellHeightUnit: 'px',
@@ -129,6 +131,17 @@ export interface GridStackOptions {
 
   /** if false gridstack will not initialize existing items (default?: true) */
   auto?: boolean;
+
+  /**
+   * one cell width (default?: 'auto'). Can be:
+   *  an integer (px)
+   *  a string (ex: '100px', '10em', '10rem'). Note: % doesn't work right
+   *  'auto' - width will be calculated by (parent container width / column)
+   */
+  cellWidth?: numberOrString;
+
+  /** (internal) unit for cellWidth (default? 'px') which is set when a string cellWidth with a unit is passed (ex: '10rem') */
+  cellWidthUnit?: string;
 
   /**
    * one cell height (default?: 'auto'). Can be:

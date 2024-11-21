@@ -399,11 +399,12 @@ export class DDDraggable extends DDBaseImplement implements HTMLElementExtendOpt
   public ui(): DDUIData {
     const containmentEl = this.el.parentElement;
     const containmentRect = containmentEl.getBoundingClientRect();
+    const containmentRectScroll = containmentEl.scrollLeft;
     const offset = this.helper.getBoundingClientRect();
     return {
       position: { //Current CSS position of the helper as { top, left } object
         top: (offset.top - containmentRect.top) * this.dragTransform.yScale,
-        left: (offset.left - containmentRect.left) * this.dragTransform.xScale
+        left: (offset.left - containmentRect.left + containmentRectScroll) * this.dragTransform.xScale
       }
       /* not used by GridStack for now...
       helper: [this.helper], //The object arr representing the helper that's being dragged.

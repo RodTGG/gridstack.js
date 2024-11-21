@@ -11,6 +11,11 @@ export interface HeightData {
   unit: string;
 }
 
+export interface WidthData {
+  w: number;
+  unit: string;
+}
+
 export interface DragTransform {
   xScale: number;
   yScale: number;
@@ -268,6 +273,25 @@ export class Utils {
       h = val;
     }
     return { h, unit };
+  }
+
+  static parseWidth(val: numberOrString): WidthData {
+    let w: number;
+    let unit = 'px';
+    if (typeof val === 'string') {
+      if (val === 'auto' || val === '') w = 0;
+      else {
+        const match = val.match(/^(-[0-9]+\.[0-9]+|[0-9]*\.[0-9]+|-[0-9]+|[0-9]+)(px|em|rem|vh|vw|%|cm|mm)?$/);
+        if (!match) {
+          throw new Error(`Invalid width val = ${val}`);
+        }
+        unit = match[2] || 'px';
+        w = parseFloat(match[1]);
+      }
+    } else {
+      w = val;
+    }
+    return { w, unit };
   }
 
   /** copies unset fields in target to use the given default sources values */
